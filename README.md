@@ -66,8 +66,8 @@ The system is designed as a **full-stack AI application** demonstrating modern A
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/deedeepratiwi/ai-data-cleaning-assistant.git
-   cd ai-data-cleaning-assistant
+   git clone https://github.com/dcollan/ai-data-cleaner.git
+   cd ai-data-cleaner
    ```
 
 2. **Install dependencies**
