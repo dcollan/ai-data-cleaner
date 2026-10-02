@@ -1,0 +1,105 @@
+# Cloud Build configuration for deploying AI Data Cleaning Assistant to Cloud Run
+# 
+# Note: Services are deployed with --allow-unauthenticated flag to enable public access.
+# The --allow-unauthenticated flag is sufficient for public access and does not require
+# additional IAM policy binding steps that may fail if the Cloud Build service account
+# lacks the run.services.setIamPolicy permission.
+
+substitutions:
+  _REGION: asia-southeast2
+  _REPO: ai-data-cleaning-repo
+  _API_SERVICE: ai-data-cleaning-api
+  _MCP_SERVICE: ai-data-cleaning-mcp
+  _N8N_SERVICE: ai-data-cleaning-n8n
+
+steps:
+  # --------------------
+  # Build API image
+  # --------------------
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - docker/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${BUILD_ID}
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${BUILD_ID}
+
+  # --------------------
+  # Build MCP image
+  # --------------------
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - mcp/Dockerfile
+      - -t
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/mcp:${BUILD_ID}
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/mcp:${BUILD_ID}
+
+  # --------------------
+  # Deploy API
+  # --------------------
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_API_SERVICE}
+      - --image
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/api:${BUILD_ID}
+      - --region
+      - ${_REGION}
+      - --platform
+      - managed
+      - --allow-unauthenticated
+      - --set-env-vars
+      - GCS_BUCKET=ai-data-cleaning-data,DATABASE_URL=sqlite:////tmp/data.db
+
+  # --------------------
+  # Deploy MCP
+  # --------------------
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_MCP_SERVICE}
+      - --image
+      - ${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/mcp:${BUILD_ID}
+      - --region
+      - ${_REGION}
+      - --platform
+      - managed
+      - --allow-unauthenticated
+
+  # --------------------
+  # Deploy n8n
+  # --------------------
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_N8N_SERVICE}
+      - --image
+      - n8nio/n8n
+      - --region
+      - ${_REGION}
+      - --platform
+      - managed
+      - --allow-unauthenticated
+      - --port
+      - '5678'
+      - --set-env-vars
+      - N8N_BASIC_AUTH_ACTIVE=true,N8N_BASIC_AUTH_USER=admin,N8N_BASIC_AUTH_PASSWORD=admin
